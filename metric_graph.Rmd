@@ -1,0 +1,98 @@
+---
+title: "metric_graph"
+author: "Olivia Freides"
+date: "10/27/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#install.packages(c("tidyverse","igraph","tidygraph"))
+library(tidyverse)
+library(igraph)
+library(tidygraph) # tiidygraph has a lot of wrapper on igraph measures, but has a few of its own.
+```
+
+## Metric Graph:
+
+GOAL:
+Compute graph whose edges are 
+(i, i+1) if d(pulse i, pulse i_1) < threshold
+and
+(zero vector, i) if d(0, pulse i) < threshold 
+```{r}
+pulse <- as.data.frame(matrix(complex(real = rnorm(100, sd = 0.5),
+                                      imaginary = rnorm(100, sd = 0.1)),
+                              nrow = 10))
+```
+
+```{r}
+euclidean_dist <- function(x, y) sqrt(sum(abs((x - y)^2)))
+euclidean_norm <- function(x) sqrt(sum(abs((x)^2)))
+```
+
+```{r}
+pulse %>%
+c-> eudist
+```
+
+Function for eudist
+```{r}
+eu_dist_norm <- function(matrix){
+  matrix %>%
+  pivot_longer(everything()) %>%
+  mutate(name = as_factor(name)) %>%
+  nest(data = value) %>%
+  mutate(datalag = lag(data, n = 1, default = NA), namelag = lag(name, n=1, default = NA)) %>%
+  filter(map(datalag, ~!is_empty(.)) %>% unlist) %>%
+  mutate(distance = map2(data, datalag, euclidean_dist), 
+         norm = map(data, euclidean_norm))
+}
+```
+
+Compare with VR complex w/ same threshold
+
+Step 1:
+Generate a random symmetric matrix of complex values, 1000x1000
+
+Step 4:
+Create the distance matrix based on a pre-specified threshold.
+
+```{r}
+metrix <- function(matrix, threshold){
+  matrix_d <- eu_dist_norm(matrix)
+  print(matrix_d)
+  
+  edge_d <- matrix_d %>% filter(distance<2.1) %>% select(name, namelag)
+  edge_n <- matrix_d %>% filter(norm<2.1) %>% select(name) %>% mutate(namelag = "V0")
+  
+  output <- as.matrix(bind_rows(edge_d, edge_n))
+  graph_from_edgelist(output) -> graph
+  print(output)
+  plot(graph, layout = layout.star, vertex.label.dist=3)
+  
+}
+
+metrix(pulse, 2.1) -> testeradj
+# we have to get it back in to matrix form... :()
+```
+
+Step 4?:
+Create a graph and iterate to a point where the edges are determined by a threshold and assigned a distance. 
+Step 5:
+Graph from matrix.
+
+```{r}
+G0 <- graph_from_adjacency_matrix(testeradj)
+
+is_connected(G0) 
+is.connected(G0, mode = "strong") # TRUE
+is.connected(G0, mode = "weak")   # TRUE by default of strong.
+is.weighted(G0) # We want True...
+```
+
+Edges are determined by the threshold and assigned a distance.
+
